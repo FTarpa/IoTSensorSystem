@@ -10,7 +10,9 @@
 
 #include "stdint.h"
 #include "main.h"
-#define SHTC3_ADDR (0x70)
+#define SHTC3_ADDR (0x45<<1)
+#pragma pack(push)
+#pragma pack(1)
 typedef struct
 {
 	float tem;
@@ -21,6 +23,8 @@ typedef enum
 	shtc3_disconnected,
 	shtc3_connected
 }SHTC3_Connected_t;
+#pragma pack(push)
+#pragma pack(1)
 typedef struct
 {
 	I2C_HandleTypeDef* interface;

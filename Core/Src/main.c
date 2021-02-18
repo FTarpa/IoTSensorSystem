@@ -42,6 +42,8 @@
 #define _PASS "173ecaa68d508"
 #define PRODUCT_TYPE	"IoTSensorUnit01"
 #define NUMBER			"2101-1234567890"
+
+#define AWS_POST_TIME (10*60000)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,10 +56,13 @@ I2C_HandleTypeDef hi2c1;
 
 RTC_HandleTypeDef hrtc;
 
+TIM_HandleTypeDef htim2;
+
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
 UART_HandleTypeDef huart7;
 UART_HandleTypeDef huart8;
+UART_HandleTypeDef huart9;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart2_rx;
@@ -70,6 +75,9 @@ Sensor_t Sensor_3 = {0};
 Sensor_t Sensor_4 = {0};
 
 SHTC3_Sensor_t HT_Sensor = {0};
+
+uint8_t mqttBuffer[30720] = {0};
+uint8_t msgIndex = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -84,6 +92,8 @@ static void MX_UART8_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_UART9_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 int16_t Receive_Func( uint8_t *buffer, uint16_t buffer_size, uint32_t time_out);
 int16_t Transmit_Func( uint8_t *data, uint16_t data_size);
@@ -133,14 +143,20 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_I2C1_Init();
+  MX_UART9_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  RetargetInit(&huart3);
+  RetargetInit(&huart9);
   memcpy(ESP32.SSID, _SSID, strlen(_SSID));
   memcpy(ESP32.Pass, _PASS, strlen(_PASS));
   ESP32.IO.IO_Receive = Receive_Func;
   ESP32.IO.IO_Transmit = Transmit_Func;
 
   printf("----------START PROGRAM----------\r\n");
+
+  HT_Sensor.interface = &hi2c1;
+  SHTC3_Init(&HT_Sensor);
+
   Sensor_1.uart_itf = &huart4;
   Sensor_Init(&Sensor_1);
 
@@ -152,9 +168,6 @@ int main(void)
 
   Sensor_4.uart_itf = &huart8;
   Sensor_Init(&Sensor_4);
-
-  HT_Sensor.interface = &hi2c1;
-  SHTC3_Init(&HT_Sensor);
 
   ESP32_Init(&ESP32);
   ESP32_MQTT_Connect(&ESP32, "client_id");
@@ -172,26 +185,22 @@ int main(void)
 
   HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
   HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  uint8_t time_str[128] = {0};
-	  Get_Time_Format(time_str, sizeof(time_str), 9);
+	  sprintf(mqttBuffer, "{");
+	  HAL_Delay(AWS_POST_TIME);
+	  mqttBuffer[strlen(mqttBuffer)-1] = 0;
+	  sprintf(mqttBuffer, "%s}", mqttBuffer);
+	  ESP32_MQTT_Public(&ESP32, "IoTSensorUnit", mqttBuffer);
+	  memset(mqttBuffer, 0, sizeof(mqttBuffer));
+	  msgIndex = 0;
 
-	  Sensor_Get_Value(&Sensor_1);
-	  Sensor_Get_Value(&Sensor_2);
-	  Sensor_Get_Value(&Sensor_3);
-	  Sensor_Get_Value(&Sensor_4);
-	  SHTC3_Measurement(&HT_Sensor);
-
-	  char data2send[512] = {0};
-	  Format_Data(Sensor_1, Sensor_2, Sensor_3, Sensor_4, HT_Sensor, data2send, time_str);
-	  ESP32_MQTT_Public(&ESP32, "IoTSensorUnit", data2send);
-
-	  HAL_Delay(60000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -349,6 +358,52 @@ static void MX_RTC_Init(void)
 }
 
 /**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 1000;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 6000000;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+  __HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE);
+  HAL_TIM_Base_Start_IT(&htim2);
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
   * @brief UART4 Initialization Function
   * @param None
   * @retval None
@@ -481,6 +536,39 @@ static void MX_UART8_Init(void)
 }
 
 /**
+  * @brief UART9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART9_Init(void)
+{
+
+  /* USER CODE BEGIN UART9_Init 0 */
+
+  /* USER CODE END UART9_Init 0 */
+
+  /* USER CODE BEGIN UART9_Init 1 */
+
+  /* USER CODE END UART9_Init 1 */
+  huart9.Instance = UART9;
+  huart9.Init.BaudRate = 115200;
+  huart9.Init.WordLength = UART_WORDLENGTH_8B;
+  huart9.Init.StopBits = UART_STOPBITS_1;
+  huart9.Init.Parity = UART_PARITY_NONE;
+  huart9.Init.Mode = UART_MODE_TX_RX;
+  huart9.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart9.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART9_Init 2 */
+
+  /* USER CODE END UART9_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -572,10 +660,11 @@ static void MX_GPIO_Init(void)
 {
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
 
 }
 
@@ -670,16 +759,41 @@ void Format_Data(Sensor_t Sensor_1,Sensor_t Sensor_2,Sensor_t Sensor_3,Sensor_t 
 	{
 		if(Sensors[i].isConnected == connected)
 		{
-			sprintf(sensor_value, "%s\t\t\"%s\":%.1f", sensor_value, Sensors[i].name, Sensors[i].value);
-			if(i<(4-1))
-				sprintf(sensor_value,"%s,\r\n", sensor_value);
+			sprintf(sensor_value, "%s\t\t\"%s\":%.1f,\r\n", sensor_value, Sensors[i].name, Sensors[i].value);
+//			if(i<(4-1))
+//				sprintf(sensor_value,"%s,\r\n", sensor_value);
 		}
 	}
-
-	sprintf(data_format, "{\r\n\t\"time\":\"%s\",\r\n\t\"product type\":\"%s\",\r\n\t\"number\":\"%s\",\r\n\t\"value\":\r\n\t{\r\n%s\r\n\t}\r\n}",
+	if(HT_Sensor.connection == shtc3_connected)
+	{
+		sprintf(sensor_value, "%s\t\t\"%s\":%.1f,\r\n", sensor_value, "Temp",HT_Sensor.data.tem);
+		sprintf(sensor_value, "%s\t\t\"%s\":%.1f\r\n", sensor_value, "Rh",HT_Sensor.data.hum);
+	}
+	else
+	{	//delete , in end of json
+		sensor_value[strlen(sensor_value)-1] = 0;
+		sensor_value[strlen(sensor_value)-2] = '\r';
+		sensor_value[strlen(sensor_value)-3] = '\n';
+	}
+	sprintf(data_format, "{\r\n\t\"time\":\"%s\",\r\n\t\"product type\":\"%s\",\r\n\t\"number\":\"%s\",\r\n\t\"values\":\r\n\t{\r\n%s\r\n\t}\r\n}",
 			time_str, PRODUCT_TYPE, NUMBER, sensor_value);
 }
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
+{
+	Sensor_Get_Value(&Sensor_1);
+	Sensor_Get_Value(&Sensor_2);
+	Sensor_Get_Value(&Sensor_3);
+	Sensor_Get_Value(&Sensor_4);
+	uint8_t time_str[128] = {0};
+	Get_Time_Format(time_str, sizeof(time_str), 9);
+
+	SHTC3_Measurement(&HT_Sensor);
+	char data2send[512] = {0};
+	Format_Data(Sensor_1, Sensor_2, Sensor_3, Sensor_4, HT_Sensor, data2send, time_str);
+	sprintf(mqttBuffer, "%s\r\n\"index_%d\":%s,",  mqttBuffer, msgIndex++, data2send);
+
+}
 /* USER CODE END 4 */
 
 /**

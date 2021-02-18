@@ -17,7 +17,7 @@ Sensor_status_t Sensor_Init(Sensor_t* sensor)
 				return Sensor_ERROR;
 			}
 		}
-		if((temp_buff[1] <= strlen(&temp_buff[2]))&&(temp_buff[1] <=10))
+		if((temp_buff[1] <= strlen(&temp_buff[2]))&&(temp_buff[1] <= 10)&&(temp_buff[1] > 0))
 		{
 			for(int i = 0; i < temp_buff[1]; i++)
 			{
@@ -35,19 +35,26 @@ Sensor_status_t Sensor_Init(Sensor_t* sensor)
 
 Sensor_status_t Sensor_Get_Value(Sensor_t* sensor)
 {
-	if(Sensor_Send_Command(sensor, WAKEUP_CMD)!= Sensor_OK)
+	if(sensor->isConnected == connected)
+	{
+		if(Sensor_Send_Command(sensor, WAKEUP_CMD)!= Sensor_OK)
+				return Sensor_ERROR;
+			uint8_t temp = 0;
+			if(Sensor_Recv_Respond(sensor,&temp, sizeof(temp), 60000)!= Sensor_OK)
+				return Sensor_ERROR;
+
+			if(Sensor_Send_Command(sensor, GETVALUE_CMD)!= Sensor_OK)
+				return Sensor_ERROR;
+			data_raw_t data_raw = {0};
+			if(Sensor_Recv_Respond(sensor, &data_raw, sizeof(data_raw), 100) != Sensor_OK)
+				return Sensor_ERROR;
+			sensor->value = Pare_Data(data_raw);
+			return Sensor_OK;
+	}
+	else
+	{
 		return Sensor_ERROR;
-	uint8_t temp = 0;
-	if(Sensor_Recv_Respond(sensor,&temp, sizeof(temp), 60000)!= Sensor_OK)
-		return Sensor_ERROR; 
-		
-	if(Sensor_Send_Command(sensor, GETVALUE_CMD)!= Sensor_OK)
-		return Sensor_ERROR;
-	data_raw_t data_raw = {0};
-	if(Sensor_Recv_Respond(sensor, &data_raw, sizeof(data_raw), 100) != Sensor_OK)
-		return Sensor_ERROR; 
-	sensor->value = Pare_Data(data_raw);
-	return Sensor_OK;
+	}
 	
 }
 

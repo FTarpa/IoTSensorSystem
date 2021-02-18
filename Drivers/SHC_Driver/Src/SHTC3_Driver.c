@@ -27,7 +27,7 @@ static uint8_t crc8(uint8_t *data, uint8_t len)
 
 SHTC3_Status_t SHTC3_Init(SHTC3_Sensor_t *sensor)
 {
-	if(HAL_I2C_IsDeviceReady(sensor->interface, SHTC3_ADDR, 3, 1000) == HAL_OK)
+	if(HAL_I2C_IsDeviceReady(sensor->interface, SHTC3_ADDR, 4, 1000) == HAL_OK)
 	{
 		sensor->connection=shtc3_connected;
 		return SHTC3_OK;
@@ -38,13 +38,13 @@ SHTC3_Status_t SHTC3_Init(SHTC3_Sensor_t *sensor)
 		return SHTC3_ERROR;
 	}
 }
-
+#ifdef SHTC3
 SHTC3_Status_t SHTC3_Measurement(SHTC3_Sensor_t *sensor)
 {
 	uint8_t weekup_cmd[2] = {0x35, 0x17};
 	if(HAL_I2C_Master_Transmit(sensor->interface, SHTC3_ADDR, weekup_cmd, sizeof(weekup_cmd), 5000)!=HAL_OK)
 		return SHTC3_ERROR;
-	uint8_t measure_cmd[2] = {0x35, 0x17};
+	uint8_t measure_cmd[2] = {0x78, 0x66};
 	if(HAL_I2C_Master_Transmit(sensor->interface, SHTC3_ADDR, measure_cmd, sizeof(measure_cmd), 5000)!=HAL_OK)
 			return SHTC3_ERROR;
 	while(HAL_I2C_IsDeviceReady(sensor->interface, SHTC3_ADDR, 1, 1000) != HAL_OK);
@@ -64,4 +64,26 @@ SHTC3_Status_t SHTC3_Measurement(SHTC3_Sensor_t *sensor)
 	sensor->data.tem = ((float)(Rt*175))/(65535.0) - 45.0;
 	return SHTC3_OK;
 }
+#else
+SHTC3_Status_t SHTC3_Measurement(SHTC3_Sensor_t *sensor)
+{
+	uint8_t measure_cmd[2] = {0x24, 0x0b};
+	if(HAL_I2C_Master_Transmit(sensor->interface, SHTC3_ADDR, measure_cmd, sizeof(measure_cmd), 5000)!=HAL_OK)
+			return SHTC3_ERROR;
+	while(HAL_I2C_IsDeviceReady(sensor->interface, SHTC3_ADDR, 1, 1000) != HAL_OK);
+	uint8_t data_raw[6] = {0};
+	if(HAL_I2C_Master_Receive(sensor->interface, SHTC3_ADDR, data_raw, sizeof(data_raw), 5000)!=HAL_OK)
+			return SHTC3_ERROR;
+	if(crc8(&data_raw[0], 2)!=data_raw[2])
+		return SHTC3_ERROR;
+	if(crc8(&data_raw[3], 2)!=data_raw[5])
+		return SHTC3_ERROR;
+	uint16_t Rt = (data_raw[0]<<8) | (data_raw[1]);
+	uint16_t Rh = (data_raw[3]<<8) | (data_raw[4]);
+
+	sensor->data.hum = ((float)(Rh*100))/(65535.0 - 1);
+	sensor->data.tem = ((float)(Rt*175))/(65535.0 - 1) - 45.0;	//resultin Co
+	return SHTC3_OK;
+}
+#endif
 #endif /* SHC_LIBRARY_SRC_SHTC3_DRIVER_C_ */
