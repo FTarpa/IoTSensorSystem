@@ -9,7 +9,7 @@
 Network_t *Network = {0};
 
 
-static Network_Status_t ESP32_SendCommand(uint8_t* cmd)
+Network_Status_t ESP32_SendCommand(uint8_t* cmd)
 {
 
 	int16_t res = Network->IO.IO_Transmit(cmd, strlen((char*)cmd));
@@ -26,7 +26,7 @@ static Network_Status_t ESP32_SendCommand(uint8_t* cmd)
 		else
 		{
 			ESP_DEBUG_RESULT("ERROR.!!!");
-			ESP_DEBUG(recv_buff);
+			ESP_DEBUG((char*)recv_buff);
 			return NETWORK_ERROR;
 		}
 
@@ -38,6 +38,8 @@ static Network_Status_t ESP32_SendCommand(uint8_t* cmd)
 Network_Status_t ESP32_Init(Network_t *network)
 {
 	Network = network;
+	HAL_GPIO_WritePin(GPIOC, ESP32_POWER, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOC, ESP32_EN, GPIO_PIN_SET);
 
 	ESP32_SendCommand((uint8_t*)"AT+RST\r\n"); 						//Reset ESP32
 	ESP32_SendCommand((uint8_t*)"ATE0\r\n"); 						//turn off echo
@@ -48,8 +50,8 @@ Network_Status_t ESP32_Init(Network_t *network)
 		if(ESP32_SendCommand((uint8_t*)"AT+CWMODE=1\r\n")>=0)
 		{
 			ESP_DEBUG("Connect wifi with ssid: %s, pass: %s\r\n",  Network->SSID, Network->Pass);
-			uint8_t cmd[64] = {0};
-			sprintf(cmd, "AT+CWJAP=\"%s\",\"%s\"\r\n", Network->SSID, Network->Pass);
+			uint8_t cmd[128] = {0};
+			sprintf((char*)cmd, "AT+CWJAP=\"%s\",\"%s\"\r\n", Network->SSID, Network->Pass);
 			if(ESP32_SendCommand(cmd)<0)
 				return NETWORK_ERROR;
 		}
@@ -59,19 +61,19 @@ Network_Status_t ESP32_Init(Network_t *network)
 		}
 
 		ESP_DEBUG("Config SSL\r\n");
-		if(ESP32_SendCommand("AT+CIPSSLCCONF=3,0,0\r\n")<0)
+		if(ESP32_SendCommand((uint8_t*)"AT+CIPSSLCCONF=3,0,0\r\n")<0)
 		{
 			return NETWORK_ERROR;
 		}
 
 		ESP_DEBUG("Config mode\r\n");
-		if(ESP32_SendCommand("AT+CWMODE=1\r\n")<0)
+		if(ESP32_SendCommand((uint8_t*)"AT+CWMODE=1\r\n")<0)
 		{
 			return NETWORK_ERROR;
 		}
 
 		ESP_DEBUG("Config time server\r\n");
-		if(ESP32_SendCommand("AT+CIPSNTPCFG=1,0,\"sg.pool.ntp.org\"\r\n")<0)
+		if(ESP32_SendCommand((uint8_t*)"AT+CIPSNTPCFG=1,0,\"sg.pool.ntp.org\"\r\n")<0)
 		{
 			return NETWORK_ERROR;
 		}
@@ -84,7 +86,7 @@ Network_Status_t ESP32_MQTT_Connect(Network_t *network, uint8_t* client_id)
 {
 	uint8_t esp_cmd[128] = {0};
 	ESP_DEBUG("Set TLS: ");
-	sprintf(esp_cmd, "AT+MQTTUSERCFG=0,4,\"%s\",\"espressif\",\"1234567890\",0,0,\"\"\r\n", client_id);
+	sprintf((char*)esp_cmd, "AT+MQTTUSERCFG=0,4,\"%s\",\"espressif\",\"1234567890\",0,0,\"\"\r\n", client_id);
 	if(ESP32_SendCommand(esp_cmd)<0)
 	{
 		ESP_DEBUG_RESULT("ERROR.!");
@@ -93,7 +95,7 @@ Network_Status_t ESP32_MQTT_Connect(Network_t *network, uint8_t* client_id)
 	ESP_DEBUG_RESULT("OK\r\n");
 	ESP_DEBUG("Connect to IoT AWS: ");
 //	if(ESP32_SendCommand("AT+MQTTCONN=0,\"as76wtq33csyg-ats.iot.ap-southeast-1.amazonaws.com\",8883,1\r\n")<0)
-	if(ESP32_SendCommand("AT+MQTTCONN=0,\"a2m7a41bhehfuw-ats.iot.us-east-2.amazonaws.com\",8883,1\r\n")<0)
+	if(ESP32_SendCommand((uint8_t*)"AT+MQTTCONN=0,\"a2m7a41bhehfuw-ats.iot.us-east-2.amazonaws.com\",8883,1\r\n")<0)
 	{
 		ESP_DEBUG_RESULT("ERROR.!");
 		return NETWORK_ERROR;
@@ -107,7 +109,7 @@ Network_Status_t ESP32_MQTT_Public(Network_t *network, uint8_t* topic, uint8_t* 
 	uint8_t esp_cmd[1024] = {0};
 
 	//sprintf(esp_cmd, "AT+MQTTPUB=0,\"%s\",\"%s\",1,0\r\n", topic, message);
-	sprintf(esp_cmd, "AT+MQTTPUBRAW=0,\"%s\",%d,1,0\r\n", topic, strlen(message));
+	sprintf((char*)esp_cmd, "AT+MQTTPUBRAW=0,\"%s\",%d,1,0\r\n", topic, strlen((char*)message));
 	ESP_DEBUG("[PUBLIC]: %s\r\n", esp_cmd);
 
 	if(ESP32_SendCommand(esp_cmd)<0)
@@ -229,13 +231,13 @@ Network_time_t ESP32_GetTime()
 	uint8_t min_num = 0;
 	uint8_t sec_num = 0;
 
-	day_num = atoi((char*)day_str);
+	day_num = (uint8_t)atoi((char*)day_str);
 	month_num = month_encode(month_str);
-	year_num = atoi(year_str);
+	year_num = (uint16_t)atoi((char*)year_str);
 
-	hour_num = atoi(hour_str);
-	min_num = atoi(min_str);
-	sec_num = atoi(sec_str);
+	hour_num = (uint8_t)atoi((char*)hour_str);
+	min_num = (uint8_t)atoi((char*)min_str);
+	sec_num = (uint8_t)atoi((char*)sec_str);
 	ESP_DEBUG("TIME: %d/%d/%d, %d:%d:%d\r\n", day_num, month_num, year_num, hour_num, min_num, sec_num);
 
 	result.year		=	year_num;

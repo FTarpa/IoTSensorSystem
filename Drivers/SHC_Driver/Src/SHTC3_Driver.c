@@ -9,7 +9,7 @@
 #define SHC_LIBRARY_SRC_SHTC3_DRIVER_C_
 #include "SHTC3_Driver.h"
 
-static uint8_t crc8(uint8_t *data, uint8_t len)
+uint8_t crc8(uint8_t *data, uint8_t len)
 {
     uint8_t crc = 0xff;
     uint8_t i = 0, j = 0;
@@ -44,10 +44,11 @@ SHTC3_Status_t SHTC3_Measurement(SHTC3_Sensor_t *sensor)
 	uint8_t weekup_cmd[2] = {0x35, 0x17};
 	if(HAL_I2C_Master_Transmit(sensor->interface, SHTC3_ADDR, weekup_cmd, sizeof(weekup_cmd), 5000)!=HAL_OK)
 		return SHTC3_ERROR;
-	uint8_t measure_cmd[2] = {0x78, 0x66};
+
+	uint8_t measure_cmd[2] = {0x5C, 0x24};
 	if(HAL_I2C_Master_Transmit(sensor->interface, SHTC3_ADDR, measure_cmd, sizeof(measure_cmd), 5000)!=HAL_OK)
 			return SHTC3_ERROR;
-	while(HAL_I2C_IsDeviceReady(sensor->interface, SHTC3_ADDR, 1, 1000) != HAL_OK);
+	while(HAL_I2C_IsDeviceReady(sensor->interface, SHTC3_ADDR, 1, 5000) != HAL_OK);
 	uint8_t data_raw[6] = {0};
 	if(HAL_I2C_Master_Receive(sensor->interface, SHTC3_ADDR, data_raw, sizeof(data_raw), 5000)!=HAL_OK)
 			return SHTC3_ERROR;

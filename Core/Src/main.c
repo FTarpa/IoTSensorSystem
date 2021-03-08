@@ -25,6 +25,7 @@
 #include "ESP32_Driver.h"
 #include "RL78_Sensor.h"
 #include "SHTC3_Driver.h"
+#include "retarget.h"
 
 #include "string.h"
 #include "stdio.h"
@@ -43,7 +44,8 @@
 #define PRODUCT_TYPE	"IoTSensorUnit01"
 #define NUMBER			"2101-1234567890"
 
-#define AWS_POST_TIME (10*60000)
+//#define AWS_POST_TIME (10*60000)
+#define AWS_POST_TIME (2*60000)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -68,7 +70,7 @@ UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
-volatile Network_t ESP32 = {0};
+Network_t ESP32 = {0};
 Sensor_t Sensor_1 = {0};
 Sensor_t Sensor_2 = {0};
 Sensor_t Sensor_3 = {0};
@@ -78,6 +80,7 @@ SHTC3_Sensor_t HT_Sensor = {0};
 
 uint8_t mqttBuffer[30720] = {0};
 uint8_t msgIndex = 0;
+uint8_t client_id[32] = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -144,7 +147,6 @@ int main(void)
   MX_USART3_UART_Init();
   MX_I2C1_Init();
   MX_UART9_Init();
-  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart9);
   memcpy(ESP32.SSID, _SSID, strlen(_SSID));
@@ -153,9 +155,14 @@ int main(void)
   ESP32.IO.IO_Transmit = Transmit_Func;
 
   printf("----------START PROGRAM----------\r\n");
+  sprintf((char*)client_id, "%x%x%x", \
+		  (unsigned int)HAL_GetUIDw0(), (unsigned int)HAL_GetUIDw1(), (unsigned int)HAL_GetUIDw2());
+  printf("Client ID: %s\r\n", client_id);
 
   HT_Sensor.interface = &hi2c1;
   SHTC3_Init(&HT_Sensor);
+	SHTC3_Measurement(&HT_Sensor);
+
 
   Sensor_1.uart_itf = &huart4;
   Sensor_Init(&Sensor_1);
@@ -170,7 +177,7 @@ int main(void)
   Sensor_Init(&Sensor_4);
 
   ESP32_Init(&ESP32);
-  ESP32_MQTT_Connect(&ESP32, "client_id");
+  ESP32_MQTT_Connect(&ESP32, client_id);
   Network_time_t network_time = ESP32_GetTime();
 
   RTC_TimeTypeDef sTime = {0};
@@ -186,18 +193,18 @@ int main(void)
   HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
   HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
-
+  MX_TIM2_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  sprintf(mqttBuffer, "{");
+	  sprintf((char*)mqttBuffer, "{");
 	  HAL_Delay(AWS_POST_TIME);
-	  mqttBuffer[strlen(mqttBuffer)-1] = 0;
-	  sprintf(mqttBuffer, "%s}", mqttBuffer);
-	  ESP32_MQTT_Public(&ESP32, "IoTSensorUnit", mqttBuffer);
+	  mqttBuffer[strlen((char*)mqttBuffer)-1] = 0;
+	  sprintf((char*)mqttBuffer, "%s}", (char*)mqttBuffer);
+	  ESP32_MQTT_Public(&ESP32, (uint8_t*)"/devices/IoTSensorUnit", mqttBuffer);
 	  memset(mqttBuffer, 0, sizeof(mqttBuffer));
 	  msgIndex = 0;
 
@@ -658,13 +665,24 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : PC4 PC5 PC6 PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
 }
 
@@ -741,40 +759,48 @@ void Get_Time_Format(uint8_t* time_str, int size ,int timeZone)
 	mktime(&proc_time);
 	//2021-01-12 12:00:00+09
 	memset(time_str, 0, size);
-	sprintf(time_str, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d+%.2d:00", (int)proc_time.tm_year + 1900, (int)proc_time.tm_mon + 1
+	sprintf((char*)time_str, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d+%.2d:00", (int)proc_time.tm_year + 1900, (int)proc_time.tm_mon + 1
 	, (int)proc_time.tm_mday, (int)proc_time.tm_hour, (int)proc_time.tm_min, (int)proc_time.tm_sec, timeZone);
 }
 
 void Format_Data(Sensor_t Sensor_1,Sensor_t Sensor_2,Sensor_t Sensor_3,Sensor_t Sensor_4, SHTC3_Sensor_t HT_Sensor,char* data_format, char* time_str)
 {
 	Sensor_t Sensors[4] = {Sensor_1, Sensor_2, Sensor_3, Sensor_4};
-	char* sensor_value[256] = {0};
+	char sensor_value[256] = {0};
 	if(HT_Sensor.connection == shtc3_connected)
 	{
 		sprintf(sensor_value, "%s\t\t\"%s\":%.1f,\r\n", sensor_value, "Temp",HT_Sensor.data.tem);
-		sprintf(sensor_value, "%s\t\t\"%s\":%.1f,\r\n", sensor_value, "Rh",HT_Sensor.data.hum);
+		sprintf(sensor_value, "%s\t\t\"%s\":%.1f", sensor_value, "Rh",HT_Sensor.data.hum);
+		for(int i = 0; i< 4; i++)
+		{
+			if(Sensors[i].isConnected == connected)
+			{
+				sprintf(sensor_value,"%s,\r\n", sensor_value);
+				break;
+			}
+		}
 	}
 
 	for(int i = 0; i < 4; i++)
 	{
 		if(Sensors[i].isConnected == connected)
 		{
-			sprintf(sensor_value, "%s\t\t\"%s\":%.1f,\r\n", sensor_value, Sensors[i].name, Sensors[i].value);
-//			if(i<(4-1))
-//				sprintf(sensor_value,"%s,\r\n", sensor_value);
+			sprintf(sensor_value, "%s\t\t\"%s\":%.1f", sensor_value, Sensors[i].name, Sensors[i].value);
+			if(i<(4-1))
+				sprintf(sensor_value,"%s,\r\n", sensor_value);
 		}
 	}
-	if(HT_Sensor.connection == shtc3_connected)
-	{
-		sprintf(sensor_value, "%s\t\t\"%s\":%.1f,\r\n", sensor_value, "Temp",HT_Sensor.data.tem);
-		sprintf(sensor_value, "%s\t\t\"%s\":%.1f\r\n", sensor_value, "Rh",HT_Sensor.data.hum);
-	}
-	else
-	{	//delete , in end of json
-		sensor_value[strlen(sensor_value)-1] = 0;
-		sensor_value[strlen(sensor_value)-2] = '\r';
-		sensor_value[strlen(sensor_value)-3] = '\n';
-	}
+//	if(HT_Sensor.connection == shtc3_connected)
+//	{
+//		sprintf(sensor_value, "%s\t\t\"%s\":%.1f,\r\n", sensor_value, "Temp",HT_Sensor.data.tem);
+//		sprintf(sensor_value, "%s\t\t\"%s\":%.1f\r\n", sensor_value, "Rh",HT_Sensor.data.hum);
+//	}
+//	else
+//	{	//delete , in end of json
+//		sensor_value[strlen(sensor_value)-1] = 0;
+//		sensor_value[strlen(sensor_value)-2] = '\n';
+//		sensor_value[strlen(sensor_value)-3] = '\r';
+//	}
 	sprintf(data_format, "{\r\n\t\"time\":\"%s\",\r\n\t\"product type\":\"%s\",\r\n\t\"number\":\"%s\",\r\n\t\"values\":\r\n\t{\r\n%s\r\n\t}\r\n}",
 			time_str, PRODUCT_TYPE, NUMBER, sensor_value);
 }
@@ -790,8 +816,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 
 	SHTC3_Measurement(&HT_Sensor);
 	char data2send[512] = {0};
-	Format_Data(Sensor_1, Sensor_2, Sensor_3, Sensor_4, HT_Sensor, data2send, time_str);
-	sprintf(mqttBuffer, "%s\r\n\"index_%d\":%s,",  mqttBuffer, msgIndex++, data2send);
+	Format_Data(Sensor_1, Sensor_2, Sensor_3, Sensor_4, HT_Sensor, data2send, (char*)time_str);
+	sprintf((char*)mqttBuffer, "%s\r\n\"index_%d\":%s,",  mqttBuffer, msgIndex++, data2send);
 
 }
 /* USER CODE END 4 */

@@ -1,5 +1,5 @@
 RL78_Sensor.c:3:17:Sensor_Init	48	static
 RL78_Sensor.c:36:17:Sensor_Get_Value	24	static
-RL78_Sensor.c:61:14:Pare_Data	32	static
-RL78_Sensor.c:75:24:Sensor_Send_Command	16	static
-RL78_Sensor.c:83:24:Sensor_Recv_Respond	32	static
+RL78_Sensor.c:61:7:Pare_Data	32	static
+RL78_Sensor.c:75:17:Sensor_Send_Command	16	static
+RL78_Sensor.c:83:17:Sensor_Recv_Respond	32	static

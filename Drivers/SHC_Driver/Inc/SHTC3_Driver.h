@@ -10,7 +10,9 @@
 
 #include "stdint.h"
 #include "main.h"
-#define SHTC3_ADDR (0x45<<1)
+//#define SHTC3_ADDR (0x45<<1) (It is for SHT31)
+#define SHTC3_ADDR (0x70<<1)
+#define SHTC3 (1)
 #pragma pack(push)
 #pragma pack(1)
 typedef struct
@@ -37,7 +39,7 @@ typedef enum
 	SHTC3_OK,
 	SHTC3_ERROR
 }SHTC3_Status_t;
-static uint8_t crc8(uint8_t *data, uint8_t len);
+uint8_t crc8(uint8_t *data, uint8_t len);
 SHTC3_Status_t SHTC3_Init(SHTC3_Sensor_t *sensor);
 SHTC3_Status_t SHTC3_Measurement(SHTC3_Sensor_t *sensor);
 

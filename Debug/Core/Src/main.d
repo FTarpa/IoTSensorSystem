@@ -33,7 +33,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h \
  ../Drivers/SHC_Driver/Inc/ESP32_Driver.h \
  ../Drivers/SHC_Driver/Inc/RL78_Sensor.h \
- ../Drivers/SHC_Driver/Inc/SHTC3_Driver.h
+ ../Drivers/SHC_Driver/Inc/SHTC3_Driver.h \
+ ../Drivers/SHC_Driver/Inc/retarget.h
 
 ../Core/Inc/main.h:
 
@@ -106,3 +107,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/SHC_Driver/Inc/RL78_Sensor.h:
 
 ../Drivers/SHC_Driver/Inc/SHTC3_Driver.h:
+
+../Drivers/SHC_Driver/Inc/retarget.h:

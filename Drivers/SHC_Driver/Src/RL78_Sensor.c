@@ -17,7 +17,7 @@ Sensor_status_t Sensor_Init(Sensor_t* sensor)
 				return Sensor_ERROR;
 			}
 		}
-		if((temp_buff[1] <= strlen(&temp_buff[2]))&&(temp_buff[1] <= 10)&&(temp_buff[1] > 0))
+		if((temp_buff[1] <= strlen((char*)&temp_buff[2]))&&(temp_buff[1] <= 10)&&(temp_buff[1] > 0))
 		{
 			for(int i = 0; i < temp_buff[1]; i++)
 			{
@@ -46,7 +46,7 @@ Sensor_status_t Sensor_Get_Value(Sensor_t* sensor)
 			if(Sensor_Send_Command(sensor, GETVALUE_CMD)!= Sensor_OK)
 				return Sensor_ERROR;
 			data_raw_t data_raw = {0};
-			if(Sensor_Recv_Respond(sensor, &data_raw, sizeof(data_raw), 100) != Sensor_OK)
+			if(Sensor_Recv_Respond(sensor, (uint8_t*)&data_raw, sizeof(data_raw), 100) != Sensor_OK)
 				return Sensor_ERROR;
 			sensor->value = Pare_Data(data_raw);
 			return Sensor_OK;
@@ -58,7 +58,7 @@ Sensor_status_t Sensor_Get_Value(Sensor_t* sensor)
 	
 }
 
-static float Pare_Data(data_raw_t data_raw)
+float Pare_Data(data_raw_t data_raw)
 {
 	float result = 0.0;
 	uint16_t value_interger = 0;
@@ -72,7 +72,7 @@ static float Pare_Data(data_raw_t data_raw)
 	return result;
 }
 
-static Sensor_status_t Sensor_Send_Command(Sensor_t* sensor, uint8_t command)
+Sensor_status_t Sensor_Send_Command(Sensor_t* sensor, uint8_t command)
 {
 	if(HAL_UART_Transmit(sensor->uart_itf, &command, 1, HAL_MAX_DELAY) == HAL_OK)
 		return Sensor_OK;
@@ -80,7 +80,7 @@ static Sensor_status_t Sensor_Send_Command(Sensor_t* sensor, uint8_t command)
 		return Sensor_ERROR;
 }
 
-static Sensor_status_t Sensor_Recv_Respond(Sensor_t* sensor, uint8_t* buff, uint8_t buffSize, uint16_t timeOut)
+Sensor_status_t Sensor_Recv_Respond(Sensor_t* sensor, uint8_t* buff, uint8_t buffSize, uint16_t timeOut)
 {
 	HAL_StatusTypeDef res = HAL_UART_Receive(sensor->uart_itf, buff, buffSize, timeOut);
 

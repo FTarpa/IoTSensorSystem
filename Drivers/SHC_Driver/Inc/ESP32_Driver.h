@@ -7,14 +7,21 @@
 
 #ifndef SHC_LIBRARY_INC_ESP32_DRIVER_H_
 #define SHC_LIBRARY_INC_ESP32_DRIVER_H_
+#include <stdlib.h>
+#include "main.h"
 #include "stdint.h"
 #include "string.h"
 #include "stdio.h"
+
 
 #define ESP_DEBUG printf("[ESP]: ");printf
 #define ESP_DEBUG_RESULT printf
 #define BUFFER_SIZE 512
 #define TIME_OUT 0xffff
+
+#define ESP32_POWER GPIO_PIN_6
+#define ESP32_EN	GPIO_PIN_7
+
 typedef int16_t (*Receive_Func_t)( uint8_t *, uint16_t , uint32_t);
 typedef int16_t (*Transmit_Func_t)( uint8_t *, uint16_t);
 
@@ -52,7 +59,7 @@ typedef struct{
 }Network_time_t ;
 
 
-static Network_Status_t ESP32_SendCommand(uint8_t* cmd);
+Network_Status_t ESP32_SendCommand(uint8_t* cmd);
 
 Network_Status_t ESP32_Init(Network_t *network);
 Network_Status_t ESP32_MQTT_Connect(Network_t *network, uint8_t* client_id);

@@ -1,5 +1,6 @@
 #include "string.h"
 #include "main.h"
+#include "stdio.h"
 #define	PING_CMD		0x55
 #define WAKEUP_CMD		0xC0
 #define GETVALUE_CMD	0xAA	
@@ -34,9 +35,9 @@ typedef struct
 	uint16_t data;
 } data_raw_t;
 
-static Sensor_status_t Sensor_Send_Command(Sensor_t* sensor, uint8_t command);
-static Sensor_status_t Sensor_Recv_Respond(Sensor_t* sensor, uint8_t* buff, uint8_t buffSize, uint16_t timeOut);
-static float Pare_Data(data_raw_t data_raw);
+Sensor_status_t Sensor_Send_Command(Sensor_t* sensor, uint8_t command);
+Sensor_status_t Sensor_Recv_Respond(Sensor_t* sensor, uint8_t* buff, uint8_t buffSize, uint16_t timeOut);
+float Pare_Data(data_raw_t data_raw);
 
 Sensor_status_t Sensor_Init(Sensor_t* sensor);
 Sensor_status_t Sensor_Get_Value(Sensor_t* sensor);
