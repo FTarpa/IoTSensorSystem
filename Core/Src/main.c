@@ -195,7 +195,7 @@ int main(void)
 
   MX_TIM2_Init();
   /* USER CODE END 2 */
-
+  HAL_Delay(10000); //Wait 10sec.
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -404,6 +404,7 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
   __HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE);
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END TIM2_Init 2 */
@@ -818,6 +819,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 	char data2send[512] = {0};
 	Format_Data(Sensor_1, Sensor_2, Sensor_3, Sensor_4, HT_Sensor, data2send, (char*)time_str);
 	sprintf((char*)mqttBuffer, "%s\r\n\"index_%d\":%s,",  mqttBuffer, msgIndex++, data2send);
+	printf("Get Sensor Data.\r\n");
 
 }
 /* USER CODE END 4 */
